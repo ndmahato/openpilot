@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JavaScript Test</title>
+    <meta charset="UTF-8">
+    <style>
+        body { background: #000; color: #0f0; font-family: monospace; padding: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #0f0; }
+        .pass { background: #004400; }
+        .fail { background: #440000; color: #f00; }
+    </style>
+</head>
+<body>
+    <h1>🧪 JavaScript & LocalStorage Test</h1>
+    
+    <div id="test1" class="test fail">
+        ❌ Test 1: JavaScript NOT running
+    </div>
+    
+    <div id="test2" class="test fail">
+        ❌ Test 2: DOM NOT ready
+    </div>
+    
+    <div id="test3" class="test fail">
+        ❌ Test 3: LocalStorage NOT available
+    </div>
+    
+    <div id="test4" class="test fail">
+        ❌ Test 4: Device ID NOT generated
+    </div>
+    
+    <div id="result" class="test">
+        <h2>Results:</h2>
+        <pre id="output">Waiting for tests...</pre>
+    </div>
+
+    <script>
+        console.log('🚀 TEST STARTED');
+        
+        // Test 1: JavaScript is running
+        document.getElementById('test1').textContent = '✅ Test 1: JavaScript IS running';
+        document.getElementById('test1').className = 'test pass';
+        console.log('✅ Test 1 PASS');
+        
+        // Test 2: DOM ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', runTests);
+        } else {
+            runTests();
+        }
+        
+        function runTests() {
+            console.log('🧪 Running tests...');
+            
+            document.getElementById('test2').textContent = '✅ Test 2: DOM is ready';
+            document.getElementById('test2').className = 'test pass';
+            console.log('✅ Test 2 PASS');
+            
+            // Test 3: LocalStorage
+            try {
+                localStorage.setItem('test', 'value');
+                let val = localStorage.getItem('test');
+                if (val === 'value') {
+                    document.getElementById('test3').textContent = '✅ Test 3: LocalStorage IS available';
+                    document.getElementById('test3').className = 'test pass';
+                    console.log('✅ Test 3 PASS');
+                } else {
+                    throw new Error('Value mismatch');
+                }
+            } catch(e) {
+                document.getElementById('test3').textContent = '❌ Test 3: LocalStorage FAILED: ' + e.message;
+                console.error('❌ Test 3 FAIL:', e);
+            }
+            
+            // Test 4: Device ID generation
+            try {
+                const deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('testDeviceId', deviceId);
+                document.getElementById('test4').textContent = '✅ Test 4: Device ID = ' + deviceId;
+                document.getElementById('test4').className = 'test pass';
+                console.log('✅ Test 4 PASS:', deviceId);
+            } catch(e) {
+                document.getElementById('test4').textContent = '❌ Test 4: Device ID generation FAILED: ' + e.message;
+                console.error('❌ Test 4 FAIL:', e);
+            }
+            
+            // Output summary
+            const output = document.getElementById('output');
+            output.textContent = 
+                'Browser: ' + navigator.userAgent + '\n' +
+                'Time: ' + new Date().toISOString() + '\n' +
+                'Screen: ' + screen.width + 'x' + screen.height + '\n' +
+                'LocalStorage: ' + (typeof(Storage) !== "undefined" ? 'Supported' : 'NOT Supported') + '\n' +
+                'Console: Check browser console for detailed logs';
+            
+            console.log('🏁 ALL TESTS COMPLETE');
+        }
+    </script>
+</body>
+</html>
