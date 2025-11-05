@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  multi-device-detection:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: openpilot-detection
+    ports:
+      - "5000:5000"
+    volumes:
+      # Persist model cache to avoid re-downloading YOLOv8 weights
+      - model-cache:/root/.cache/torch/hub/checkpoints
+    restart: unless-stopped
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/status')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  model-cache:

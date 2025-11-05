@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation (exclude all except main doc)
+*.md
+!SYSTEM_DOCUMENTATION.md
+
+# Test files
+test_simple.py
+test_voice_only.py
+test_yolo_detection.py
+test_yolo_mobile_stream.py
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+Jenkinsfile
+*.sh
+Dockerfile.openpilot
+Dockerfile.openpilot_base
+SConstruct
+conftest.py
+mkdocs.yml
+pyproject.toml
+LICENSE
+SECURITY.md
+RELEASES.md
