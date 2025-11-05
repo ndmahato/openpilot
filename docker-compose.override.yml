@@ -1,0 +1,14 @@
+# Docker Compose Override for Local Development
+# This file is automatically used by docker-compose for local builds
+# It overrides the production image with a local build from Dockerfile
+
+version: '3.8'
+
+services:
+  multi-device-detection:
+    # Override the image directive with local build
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Optionally remove the image name to avoid tagging during build
+    # image: null

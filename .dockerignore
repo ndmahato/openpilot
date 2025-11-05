@@ -39,6 +39,10 @@ wheels/
 *.md
 !SYSTEM_DOCUMENTATION.md
 
+# Docker files
+docker-compose*.yml
+.dockerignore
+
 # Test files
 test_simple.py
 test_voice_only.py

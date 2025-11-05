@@ -2,9 +2,9 @@ version: '3.8'
 
 services:
   multi-device-detection:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # Use prebuilt image from Docker Hub (for production/EC2)
+    # Override with docker-compose.override.yml for local development builds
+    image: kainosit/openpilot:latest
     container_name: openpilot-detection
     ports:
       - "5000:5000"

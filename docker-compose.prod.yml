@@ -1,0 +1,29 @@
+# Docker Compose Production Configuration
+# Use this file for EC2 deployment (ensures prebuilt image is used)
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+version: '3.8'
+
+services:
+  multi-device-detection:
+    # Explicitly use the prebuilt image from Docker Hub
+    image: kainosit/openpilot:latest
+    # No build directive - forces pull from registry
+    
+    # Production-specific environment variables
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+      # Add any production-specific env vars here
+      # - AUTH_USERNAME=admin
+      # - AUTH_PASSWORD=changeme
+    
+    # Production resource limits (optional, adjust based on EC2 instance)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 4G
+    #     reservations:
+    #       cpus: '1'
+    #       memory: 2G

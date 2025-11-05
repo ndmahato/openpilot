@@ -198,7 +198,53 @@ docker --version
 
 ## Step 6: Deploy Docker Image to EC2
 
-### Option A: Build on EC2 (Simple, but slower)
+### Option A: Using Pre-built Image from Docker Hub (Recommended - Fastest)
+
+The image is already pushed to Docker Hub: **kainosit/openpilot:latest**
+
+```bash
+# Create project directory
+mkdir -p ~/openpilot-detection
+cd ~/openpilot-detection
+
+# Transfer Docker Compose files from your Windows machine (PowerShell):
+scp -i "C:\path\to\your-key.pem" `
+  docker-compose.yml `
+  docker-compose.prod.yml `
+  deploy-ec2.sh `
+  ec2-user@<EC2_PUBLIC_IP>:~/openpilot-detection/
+
+# On EC2: Make deployment script executable
+chmod +x deploy-ec2.sh
+
+# Run automated deployment
+./deploy-ec2.sh
+
+# This script will:
+# - Check/install Docker if needed
+# - Pull latest image from Docker Hub
+# - Start container with production config
+# - Display access URLs and useful commands
+```
+
+### Option B: Manual Deployment (Step-by-step)
+
+```bash
+cd ~/openpilot-detection
+
+# Pull latest image
+docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+
+# Start container
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# Verify it's running
+docker ps
+docker logs openpilot-detection
+curl http://localhost:5000/status
+```
+
+### Option C: Build on EC2 (Slower, but no Docker Hub needed)
 
 ```bash
 # Create project directory
@@ -224,7 +270,49 @@ docker build -t openpilot-detection:latest .
 # This takes 5-10 minutes (downloads dependencies)
 ```
 
-### Option B: Push to Docker Hub (Faster, reusable)
+### Option C: Build on EC2 (Slower, but no Docker Hub needed)
+
+```bash
+# Create project directory
+mkdir -p ~/openpilot-detection
+cd ~/openpilot-detection
+
+# Transfer files from local machine
+# From your Windows machine (PowerShell):
+scp -i "C:\path\to\your-key.pem" `
+  test_yolo_multi_mobile.py `
+  Dockerfile `
+  docker-compose.override.yml `
+  requirements.txt `
+  SYSTEM_DOCUMENTATION.md `
+  ec2-user@<EC2_PUBLIC_IP>:~/openpilot-detection/
+
+# Back on EC2:
+cd ~/openpilot-detection
+
+# Build Docker image (takes 5-10 minutes)
+docker compose up --build -d
+```
+
+**Note:** Option A (pre-built image) is **much faster** and recommended for production. Option C is only needed if you want to build from source on EC2.
+
+### Updating Production Deployment
+
+When you make changes locally and push a new image to Docker Hub:
+
+```bash
+# On EC2:
+cd ~/openpilot-detection
+
+# Pull latest image
+docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+
+# Restart with new image (zero downtime)
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# Or use the deployment script
+./deploy-ec2.sh
+```
 
 ```powershell
 # On your Windows machine (after local testing):
