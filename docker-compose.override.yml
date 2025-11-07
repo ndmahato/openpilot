@@ -2,8 +2,6 @@
 # This file is automatically used by docker-compose for local builds
 # It overrides the production image with a local build from Dockerfile
 
-version: '3.8'
-
 services:
   multi-device-detection:
     # Override the image directive with local build

@@ -5,12 +5,19 @@ AI-powered object detection system with GPS tracking, OCR speed limit detection,
 ## 🚀 Quick Start
 
 ### Docker Hub (Production - Recommended)
+
+**⚠️ Note:** The Docker Hub repository is currently private. You need to either:
+- Make it public at https://hub.docker.com/repository/docker/kainosit/openpilot/settings/general
+- Or run `docker login` before pulling
+
 ```bash
 docker pull kainosit/openpilot:latest
 docker run -d -p 5000:5000 --name openpilot-detection kainosit/openpilot:latest
 ```
 
 Access at: **http://localhost:5000**
+
+See **[DOCKERHUB_ACCESS_FIX.md](DOCKERHUB_ACCESS_FIX.md)** for solutions.
 
 ### Local Development
 ```powershell
@@ -40,6 +47,7 @@ docker-compose up --build -d
 
 ### For EC2 Production
 - t3.large or better (2 vCPUs, 8GB RAM minimum)
+- **Ubuntu 22.04 LTS** (recommended) or Amazon Linux 2
 - 20GB EBS storage
 - Security Group with port 5000 open
 
@@ -49,14 +57,31 @@ docker-compose up --build -d
 
 See **[QUICK_DEPLOY.md](QUICK_DEPLOY.md)** for step-by-step EC2 deployment.
 
+**Ubuntu 22.04 (Recommended):**
 ```bash
 # On EC2
 mkdir ~/openpilot-detection
 cd ~/openpilot-detection
 
-# Upload docker-compose files, then:
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Upload docker-compose files and deploy-ec2.sh, then:
+chmod +x deploy-ec2.sh
+./deploy-ec2.sh
 ```
+
+**Amazon Linux 2:**
+```bash
+# Same commands - the script auto-detects your OS!
+chmod +x deploy-ec2.sh
+./deploy-ec2.sh
+```
+
+The deployment script automatically:
+- Detects your OS (Ubuntu or Amazon Linux)
+- Installs Docker and Docker Compose
+- Pulls the image from Docker Hub
+- Starts the container
+
+See **[UBUNTU_VS_AMAZON_LINUX.md](UBUNTU_VS_AMAZON_LINUX.md)** for OS-specific commands.
 
 ### Option 2: Local Docker Desktop
 
@@ -95,7 +120,9 @@ openpilot/
 
 | Document | Purpose |
 |----------|---------|
-| **[QUICK_DEPLOY.md](QUICK_DEPLOY.md)** | 🚀 Deploy to EC2 in 5 minutes |
+| **[DOCKERHUB_ACCESS_FIX.md](DOCKERHUB_ACCESS_FIX.md)** | 🔒 Fix Docker Hub pull access denied error |
+| **[QUICK_DEPLOY.md](QUICK_DEPLOY.md)** | 🚀 Deploy to EC2 in 5 minutes (Ubuntu/Amazon Linux) |
+| **[UBUNTU_VS_AMAZON_LINUX.md](UBUNTU_VS_AMAZON_LINUX.md)** | 📋 OS-specific command reference |
 | **[SYSTEM_DOCUMENTATION.md](SYSTEM_DOCUMENTATION.md)** | 📖 Complete system reference (50+ pages) |
 | **[DOCKER_COMPOSE_GUIDE.md](DOCKER_COMPOSE_GUIDE.md)** | 🐳 Docker Compose usage for dev/prod |
 | **[LOCAL_DOCKER_TESTING.md](LOCAL_DOCKER_TESTING.md)** | 💻 Local Docker Desktop testing |

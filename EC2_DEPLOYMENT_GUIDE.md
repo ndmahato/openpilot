@@ -36,9 +36,25 @@ Deployment Architecture:
 - **RAM:** 4 GB (8 GB+ recommended)
 - **Storage:** 20 GB EBS (SSD)
 - **Network:** Enhanced networking enabled
-- **OS:** Amazon Linux 2 or Ubuntu 20.04/22.04
+- **OS:** Ubuntu 22.04 LTS or Amazon Linux 2
 
 **Recommendation:** Start with **t3.large** for production use with 1-2 mobile devices.
+
+### Operating System Choice
+
+**Ubuntu 22.04 LTS (Recommended)**
+- ✅ More familiar for most developers
+- ✅ Better Docker Compose v2 support out of box
+- ✅ Longer LTS support (until 2027)
+- ✅ Larger community and package availability
+- Default user: `ubuntu`
+
+**Amazon Linux 2**
+- ✅ Optimized for AWS
+- ✅ Tight integration with AWS services
+- ✅ Faster boot and lower overhead
+- ⚠️ Requires Docker Compose v1 installation
+- Default user: `ec2-user`
 
 ## Step 2: Launch EC2 Instance
 
@@ -54,8 +70,10 @@ Deployment Architecture:
    - Name: `openpilot-detection-server`
 
    **Application and OS Images (AMI):**
-   - **Recommended:** Amazon Linux 2 AMI (HVM) - SSD Volume Type
-   - Alternative: Ubuntu Server 22.04 LTS
+   - **Recommended for Ubuntu:** Ubuntu Server 22.04 LTS (HVM) - SSD Volume Type
+   - **Alternative:** Amazon Linux 2 AMI (HVM) - SSD Volume Type
+   
+   **Note:** The deployment script (`deploy-ec2.sh`) automatically detects your OS and installs dependencies accordingly.
 
    **Instance type:**
    - Select `t3.large` (or your chosen type)
@@ -125,12 +143,19 @@ Rule 3 (Optional - HTTPS):
 
 ### From Windows (PowerShell)
 
+**For Ubuntu instances:**
 ```powershell
 # Set permissions on key file (first time only)
 icacls "C:\path\to\your-key.pem" /inheritance:r
 icacls "C:\path\to\your-key.pem" /grant:r "$($env:USERNAME):(R)"
 
-# Connect to instance
+# Connect to Ubuntu instance
+ssh -i "C:\path\to\your-key.pem" ubuntu@<EC2_PUBLIC_IP>
+```
+
+**For Amazon Linux instances:**
+```powershell
+# Connect to Amazon Linux instance
 ssh -i "C:\path\to\your-key.pem" ec2-user@<EC2_PUBLIC_IP>
 ```
 
@@ -142,6 +167,44 @@ Example: 54.123.45.67
 ```
 
 ## Step 5: Install Docker on EC2
+
+The deployment script (`deploy-ec2.sh`) will automatically detect your OS and install Docker. However, if you want to install manually:
+
+### For Ubuntu 22.04 LTS (Recommended)
+
+```bash
+# Update packages
+sudo apt-get update
+
+# Install prerequisites
+sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+
+# Add Docker's official GPG key
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+
+# Add Docker repository
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker and Docker Compose
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# Start and enable Docker
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# Add user to docker group (replace 'ubuntu' with your username)
+sudo usermod -aG docker ubuntu
+
+# Apply group changes (logout and login, or run:)
+newgrp docker
+
+# Verify installation
+docker --version
+docker compose version
+# Expected: Docker version 24.x.x or higher
+# Expected: Docker Compose version v2.x.x or higher
+```
 
 ### For Amazon Linux 2
 
@@ -162,12 +225,15 @@ sudo usermod -a -G docker ec2-user
 # Apply group changes (logout and login, or run:)
 newgrp docker
 
+# Install Docker Compose (v1 for Amazon Linux 2)
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
 # Verify installation
 docker --version
+docker-compose --version
 # Expected: Docker version 20.10.x or higher
-
-# Test Docker
-docker run hello-world
+# Expected: docker-compose version 1.29.x or higher
 ```
 
 ### For Ubuntu 20.04/22.04
@@ -198,10 +264,61 @@ docker --version
 
 ## Step 6: Deploy Docker Image to EC2
 
+### ⚠️ Important: Docker Hub Access
+
+Before proceeding, note that the `kainosit/openpilot` repository on Docker Hub is currently **private**.
+
+**You have 3 options:**
+
+1. **Make repository public** (recommended for open-source projects)
+   - Visit: https://hub.docker.com/repository/docker/kainosit/openpilot/settings/general
+   - Change Visibility to "Public"
+
+2. **Login to Docker Hub on EC2**
+   ```bash
+   docker login
+   # Enter credentials
+   ```
+
+3. **Build from source** (automatic fallback in deploy script)
+   - Upload source files to EC2
+   - Script will build automatically if pull fails
+
+See **[DOCKERHUB_ACCESS_FIX.md](DOCKERHUB_ACCESS_FIX.md)** for detailed instructions.
+
+---
+
 ### Option A: Using Pre-built Image from Docker Hub (Recommended - Fastest)
 
 The image is already pushed to Docker Hub: **kainosit/openpilot:latest**
 
+**For Ubuntu instances:**
+```bash
+# Create project directory
+mkdir -p ~/openpilot-detection
+cd ~/openpilot-detection
+
+# Transfer Docker Compose files from your Windows machine (PowerShell):
+scp -i "C:\path\to\your-key.pem" `
+  docker-compose.yml `
+  docker-compose.prod.yml `
+  deploy-ec2.sh `
+  ubuntu@<EC2_PUBLIC_IP>:~/openpilot-detection/
+
+# On Ubuntu EC2: Make deployment script executable
+chmod +x deploy-ec2.sh
+
+# Run automated deployment
+./deploy-ec2.sh
+
+# This script will:
+# - Detect Ubuntu and install Docker + Docker Compose plugin if needed
+# - Pull latest image from Docker Hub
+# - Start container with production config
+# - Display access URLs and useful commands
+```
+
+**For Amazon Linux instances:**
 ```bash
 # Create project directory
 mkdir -p ~/openpilot-detection
@@ -214,14 +331,15 @@ scp -i "C:\path\to\your-key.pem" `
   deploy-ec2.sh `
   ec2-user@<EC2_PUBLIC_IP>:~/openpilot-detection/
 
-# On EC2: Make deployment script executable
+# On Amazon Linux EC2: Make deployment script executable
 chmod +x deploy-ec2.sh
 
 # Run automated deployment
 ./deploy-ec2.sh
 
 # This script will:
-# - Check/install Docker if needed
+# - Detect Amazon Linux and install Docker if needed
+# - Install Docker Compose v1 if needed
 # - Pull latest image from Docker Hub
 # - Start container with production config
 # - Display access URLs and useful commands
@@ -229,6 +347,7 @@ chmod +x deploy-ec2.sh
 
 ### Option B: Manual Deployment (Step-by-step)
 
+**For Ubuntu with Docker Compose v2:**
 ```bash
 cd ~/openpilot-detection
 
@@ -237,6 +356,22 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
 
 # Start container
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# Verify it's running
+docker ps
+docker logs openpilot-detection
+curl http://localhost:5000/status
+```
+
+**For Amazon Linux with Docker Compose v1:**
+```bash
+cd ~/openpilot-detection
+
+# Pull latest image
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml pull
+
+# Start container
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 # Verify it's running
 docker ps

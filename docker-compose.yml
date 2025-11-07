@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   multi-device-detection:
     # Use prebuilt image from Docker Hub (for production/EC2)

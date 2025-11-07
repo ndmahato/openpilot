@@ -2,8 +2,6 @@
 # Use this file for EC2 deployment (ensures prebuilt image is used)
 # Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
-version: '3.8'
-
 services:
   multi-device-detection:
     # Explicitly use the prebuilt image from Docker Hub
