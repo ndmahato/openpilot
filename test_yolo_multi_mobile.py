@@ -111,6 +111,12 @@ COLOR_TEXT = (255, 255, 255)      # White
 COLOR_PERSON = (255, 0, 255)      # Magenta for people
 COLOR_FURNITURE = (255, 255, 0)   # Cyan for furniture
 
+# Stopped vehicle voice alert suppression thresholds
+# Voice should pause when driver has brought vehicle to a complete stop
+# but visual (red box) remains for situational awareness.
+STOP_SPEED_THRESHOLD = 0.5       # km/h; <= this treated as "stopped"
+STOP_CONFIRM_SAMPLES = 3         # consecutive readings required to confirm stop
+
 # Flask app for mobile streaming
 app = Flask(__name__)
 
@@ -140,6 +146,7 @@ class DeviceSession:
         self.current_speed = 0.0  # km/h
         self.speed_lock = threading.Lock()
         self.last_speed_update = time.time()
+        self.speed_history = []  # recent speed samples for stopped detection
         
         # Speed limit tracking
         self.speed_limit = 50  # Default 50 km/h
@@ -166,6 +173,13 @@ class DeviceSession:
     def update_alert(self, alert_msg, level, voice_msg, has_alert):
         """Update alert for this device"""
         with self.alert_lock:
+            # Determine if vehicle is stopped (speed near zero for consecutive samples)
+            stopped = self.is_vehicle_stopped()
+            suppressed = False
+            # Suppress voice when vehicle stopped but keep visual alert & level
+            if has_alert and level in ("CRITICAL", "WARNING", "CAUTION") and stopped:
+                voice_msg = ''  # clear voice message to suppress speaking client-side
+                suppressed = True
             self.current_alert = {
                 'has_alert': has_alert,
                 'message': alert_msg,
@@ -173,7 +187,10 @@ class DeviceSession:
                 'level': level,
                 'timestamp': time.time(),
                 'device_id': self.device_id,
-                'speed_limit': self.get_speed_limit()  # Include current speed limit
+                'speed_limit': self.get_speed_limit(),  # Include current speed limit
+                'speed': self.get_speed(),
+                'suppressed': suppressed,
+                'suppressed_reason': 'vehicle_stopped' if suppressed else ''
             }
     
     def update_speed(self, speed_kmh):
@@ -181,6 +198,10 @@ class DeviceSession:
         with self.speed_lock:
             self.current_speed = speed_kmh
             self.last_speed_update = time.time()
+            # Track recent speeds (keep last 10 for smoothing)
+            self.speed_history.append(speed_kmh)
+            if len(self.speed_history) > 10:
+                self.speed_history = self.speed_history[-10:]
     
     def get_speed(self):
         """Get current vehicle speed"""
@@ -233,6 +254,14 @@ class DeviceSession:
         """Get current alert for this device"""
         with self.alert_lock:
             return self.current_alert.copy()
+    
+    def is_vehicle_stopped(self):
+        """Return True if speed has been below threshold for required consecutive samples"""
+        with self.speed_lock:
+            if len(self.speed_history) < STOP_CONFIRM_SAMPLES:
+                return False
+            recent = self.speed_history[-STOP_CONFIRM_SAMPLES:]
+            return all(s <= STOP_SPEED_THRESHOLD for s in recent)
             
     def is_active(self, timeout=30):
         """Check if device is still active (received frame within timeout)"""

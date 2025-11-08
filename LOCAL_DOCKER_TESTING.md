@@ -371,3 +371,94 @@ If you encounter issues:
 ---
 
 **Ready for EC2 Deployment?** See [EC2_DEPLOYMENT_GUIDE.md](EC2_DEPLOYMENT_GUIDE.md) for production deployment instructions.
+
+---
+
+## New Helper Scripts
+
+Two helper scripts were added to streamline local updates and publishing images to Docker Hub before EC2 deployment:
+
+### 1. `update_local_docker.sh`
+Purpose: Pull (or rebuild) the latest image and recreate the local container using Docker Compose.
+
+Key features:
+- Pull remote image `kainosit/openpilot:latest` OR rebuild locally (`--build`)
+- Optional health check wait (default on; disable with `--no-health`)
+- Optional pruning of unused resources (`--prune`)
+- Attach logs automatically (`--logs`)
+- Supports override file (`--override` if `docker-compose.override.yml` present)
+
+Examples (Git Bash / WSL):
+```bash
+./update_local_docker.sh                # Pull + recreate
+./update_local_docker.sh --build        # Force local rebuild
+./update_local_docker.sh --build --logs # Rebuild and follow logs
+./update_local_docker.sh --no-health    # Skip waiting for health
+./update_local_docker.sh --prune        # Prune unused Docker data (careful)
+```
+
+PowerShell (invoke via bash):
+```powershell
+wsl bash ./update_local_docker.sh --build
+# or if using Git Bash shell in terminal:
+sh ./update_local_docker.sh --build --logs
+```
+
+Exit codes:
+```
+0 success
+1 docker not available
+2 compose file missing
+3 health check failed
+```
+
+### 2. `push_latest_image.sh`
+Purpose: Build and push an image to Docker Hub with both `latest` and a date/Git-based version tag.
+
+Automatic tagging format: `YYYY-MM-DD` or `YYYY-MM-DD-<gitSHA>` if inside a git repo.
+
+Flags:
+- `--no-cache` – Force full rebuild
+- `--dry-run` – Show actions without executing push
+- `--platform linux/amd64` – Cross-build for a target platform (uses buildx)
+- `--tag extra-tag` – Add an additional custom tag
+
+Examples:
+```bash
+./push_latest_image.sh                   # Build + push latest + date/git tag
+./push_latest_image.sh --no-cache        # Clean rebuild
+./push_latest_image.sh --tag staging     # Also push :staging
+./push_latest_image.sh --dry-run         # Preview actions
+./push_latest_image.sh --platform linux/amd64 --no-cache
+```
+
+PowerShell invocation (via WSL):
+```powershell
+wsl bash ./push_latest_image.sh --tag staging
+```
+
+After push, `docker-compose.yml` pulling `kainosit/openpilot:latest` will fetch the newly published image.
+
+### Windows Execution Notes
+- These `.sh` scripts are Unix-style. Use one of:
+   - Git Bash (installed with Git for Windows)
+   - WSL (Ubuntu) + `wsl bash ./script.sh`
+   - Or convert to `.ps1` if desired
+- Make scripts executable in Git Bash/WSL: `chmod +x update_local_docker.sh push_latest_image.sh`
+- Ensure you are logged in to Docker Hub before pushing: `docker login`
+
+### Workflow Summary
+```
+# 1. Build & push new image to Docker Hub
+./push_latest_image.sh --tag test-branch
+
+# 2. Update local Docker Desktop to verify
+./update_local_docker.sh --pull --logs   # (pull is default)
+
+# 3. Deploy to EC2 using existing script
+./deploy-ec2.sh                          # (follows EC2 guide)
+```
+
+If verification fails locally, rebuild with `--build` to ensure Dockerfile changes are valid before pushing again.
+
+---

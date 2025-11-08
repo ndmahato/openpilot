@@ -6,6 +6,7 @@ services:
   multi-device-detection:
     # Explicitly use the prebuilt image from Docker Hub
     image: kainosit/openpilot:latest
+    pull_policy: always
     # No build directive - forces pull from registry
     
     # Production-specific environment variables
