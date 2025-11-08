@@ -911,119 +911,383 @@ def index():
         <meta http-equiv="Pragma" content="no-cache">
         <meta http-equiv="Expires" content="0">
         <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            
             body {
                 margin: 0;
-                padding: 10px;
+                padding: 0;
                 background: #000;
                 color: #fff;
-                font-family: Arial, sans-serif;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                overflow-x: hidden;
             }
-            .container {
-                max-width: 800px;
-                margin: 0 auto;
+            
+            /* Video Container - Full Screen Capable */
+            .video-container {
+                position: relative;
+                width: 100vw;
+                height: 100vh;
+                background: #000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
             }
-            h1 { text-align: center; color: #0f0; margin: 10px 0; }
-            .mode-indicator {
-                background: """ + ("#ff8800" if ROAD_MODE else "#0088ff") + """;
-                color: #000;
-                font-weight: bold;
-                text-align: center;
-                padding: 8px;
-                border-radius: 5px;
-                margin: 10px 0;
-                font-size: 14px;
-            }
-            .status {
-                background: #222;
-                padding: 10px;
-                border-radius: 5px;
-                margin: 10px 0;
-            }
-            #deviceInfo { color: #0ff; margin: 5px 0; }
-            #connectionStatus { color: #ff0; margin: 5px 0; }
-            video {
-                width: 100%;
-                max-width: 640px;
+            
+            .video-container.setup-mode {
                 height: auto;
-                border: 2px solid #0f0;
-                border-radius: 5px;
+                min-height: 50vh;
+            }
+            
+            /* Video Stream */
+            #resultVideo, #localVideo {
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
                 display: block;
-                margin: 10px auto;
             }
-            #resultVideo {
-                width: 100%;
-                border: 2px solid #00f;
-                border-radius: 5px;
+            
+            #localVideo {
+                position: absolute;
+                opacity: 0;
+                pointer-events: none;
             }
-            .alert-box {
-                padding: 15px;
-                border-radius: 5px;
-                margin: 10px 0;
+            
+            /* HUD Overlay - Heads Up Display */
+            .hud-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                pointer-events: none;
+                z-index: 10;
+            }
+            
+            /* Top Status Bar */
+            .top-bar {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                background: linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 100%);
+                padding: 12px 16px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 12px;
+                backdrop-filter: blur(10px);
+                border-bottom: 2px solid rgba(0, 255, 0, 0.3);
+            }
+            
+            .status-left {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+            
+            .status-right {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                text-align: right;
+            }
+            
+            .device-id {
+                font-size: 11px;
+                color: #0ff;
+                font-weight: 600;
+                text-shadow: 0 0 8px rgba(0, 255, 255, 0.5);
+            }
+            
+            .connection-status {
+                font-size: 11px;
+                color: #ff0;
+                font-weight: 500;
+            }
+            
+            .datetime-display {
+                font-size: 14px;
+                color: #0f0;
+                font-weight: 700;
+                font-family: 'Courier New', monospace;
+                text-shadow: 0 0 10px rgba(0, 255, 0, 0.6);
+            }
+            
+            .mode-badge {
+                display: inline-block;
+                padding: 4px 12px;
+                border-radius: 20px;
+                font-size: 11px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            
+            .mode-indoor {
+                background: rgba(0, 136, 255, 0.9);
+                color: #fff;
+                box-shadow: 0 0 15px rgba(0, 136, 255, 0.6);
+            }
+            
+            .mode-road {
+                background: rgba(255, 136, 0, 0.9);
+                color: #000;
+                box-shadow: 0 0 15px rgba(255, 136, 0, 0.6);
+            }
+            
+            /* Speed Panel - Center Top */
+            .speed-panel {
+                position: absolute;
+                top: 80px;
+                left: 50%;
+                transform: translateX(-50%);
+                display: flex;
+                gap: 20px;
+                align-items: center;
+                background: rgba(0, 0, 0, 0.85);
+                padding: 16px 28px;
+                border-radius: 50px;
+                backdrop-filter: blur(15px);
+                border: 2px solid rgba(0, 255, 0, 0.4);
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+            }
+            
+            .speed-item {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 4px;
+            }
+            
+            .speed-label {
+                font-size: 10px;
+                color: #888;
+                text-transform: uppercase;
+                font-weight: 600;
+                letter-spacing: 1px;
+            }
+            
+            .speed-value {
+                font-size: 32px;
+                font-weight: 900;
+                font-family: 'Courier New', monospace;
+                line-height: 1;
+            }
+            
+            .speed-current {
+                color: #0ff;
+                text-shadow: 0 0 15px rgba(0, 255, 255, 0.8);
+            }
+            
+            .speed-limit {
+                color: #ff8800;
+                text-shadow: 0 0 15px rgba(255, 136, 0, 0.8);
+            }
+            
+            .speed-unit {
+                font-size: 14px;
+                color: #888;
+                font-weight: 600;
+            }
+            
+            .speed-divider {
+                width: 2px;
+                height: 50px;
+                background: linear-gradient(to bottom, transparent, rgba(0, 255, 0, 0.5), transparent);
+            }
+            
+            /* Alert Banner - Center */
+            .alert-banner {
+                position: absolute;
+                bottom: 120px;
+                left: 50%;
+                transform: translateX(-50%);
+                min-width: 80%;
+                max-width: 90%;
+                padding: 20px 30px;
+                border-radius: 16px;
                 font-size: 18px;
-                font-weight: bold;
+                font-weight: 700;
                 text-align: center;
-                min-height: 50px;
+                backdrop-filter: blur(15px);
+                box-shadow: 0 6px 30px rgba(0, 0, 0, 0.7);
+                border: 3px solid;
+                animation: pulse 0.5s ease-in-out;
             }
-            .alert-CRITICAL { background: #f00; color: #fff; }
-            .alert-WARNING { background: #ff8800; color: #000; }
-            .alert-CAUTION { background: #ff0; color: #000; }
-            .alert-SAFE { background: #0f0; color: #000; }
-            button {
-                width: 100%;
-                padding: 15px;
-                margin: 10px 0;
-                font-size: 16px;
+            
+            @keyframes pulse {
+                0%, 100% { transform: translateX(-50%) scale(1); }
+                50% { transform: translateX(-50%) scale(1.02); }
+            }
+            
+            .alert-CRITICAL {
+                background: rgba(255, 0, 0, 0.95);
+                color: #fff;
+                border-color: #ff0000;
+                box-shadow: 0 6px 30px rgba(255, 0, 0, 0.8), 0 0 50px rgba(255, 0, 0, 0.5);
+                animation: pulse-critical 0.3s ease-in-out infinite;
+            }
+            
+            @keyframes pulse-critical {
+                0%, 100% { transform: translateX(-50%) scale(1); }
+                50% { transform: translateX(-50%) scale(1.05); }
+            }
+            
+            .alert-WARNING {
+                background: rgba(255, 136, 0, 0.95);
+                color: #000;
+                border-color: #ff8800;
+                box-shadow: 0 6px 30px rgba(255, 136, 0, 0.7);
+            }
+            
+            .alert-CAUTION {
+                background: rgba(255, 255, 0, 0.95);
+                color: #000;
+                border-color: #ff0;
+                box-shadow: 0 6px 30px rgba(255, 255, 0, 0.6);
+            }
+            
+            .alert-SAFE {
+                background: rgba(0, 255, 0, 0.85);
+                color: #000;
+                border-color: #0f0;
+                box-shadow: 0 6px 30px rgba(0, 255, 0, 0.4);
+            }
+            
+            /* Bottom Control Bar */
+            .bottom-bar {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 100%);
+                padding: 16px;
+                backdrop-filter: blur(10px);
+                border-top: 2px solid rgba(0, 255, 0, 0.3);
+                pointer-events: auto;
+            }
+            
+            .control-buttons {
+                display: flex;
+                gap: 10px;
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+            
+            .control-btn {
+                padding: 12px 24px;
                 border: none;
-                border-radius: 5px;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 700;
                 cursor: pointer;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+                pointer-events: auto;
             }
-            #startBtn {
-                background: #0f0;
+            
+            .control-btn:active {
+                transform: scale(0.95);
+            }
+            
+            .btn-start {
+                background: linear-gradient(135deg, #00ff00, #00cc00);
                 color: #000;
             }
-            #stopBtn {
-                background: #f00;
+            
+            .btn-stop {
+                background: linear-gradient(135deg, #ff0000, #cc0000);
                 color: #fff;
             }
-            #voiceBtn {
-                background: #00f;
+            
+            .btn-voice {
+                background: linear-gradient(135deg, #0088ff, #0066cc);
                 color: #fff;
             }
-            .controls {
-                margin: 20px 0;
+            
+            .btn-voice.active {
+                background: linear-gradient(135deg, #00ff00, #00cc00);
+                color: #000;
             }
-            .settings-panel {
+            
+            .btn-fullscreen {
+                background: linear-gradient(135deg, #8800ff, #6600cc);
+                color: #fff;
+            }
+            
+            .btn-settings {
+                background: linear-gradient(135deg, #ff8800, #cc6600);
+                color: #fff;
+            }
+            
+            /* Metrics Display */
+            .metrics-display {
+                position: absolute;
+                top: 180px;
+                right: 16px;
+                background: rgba(0, 0, 0, 0.8);
+                padding: 10px 14px;
+                border-radius: 8px;
+                font-family: 'Courier New', monospace;
+                font-size: 10px;
+                color: #0ff;
+                border: 1px solid rgba(0, 255, 255, 0.3);
+                backdrop-filter: blur(10px);
+            }
+            
+            /* Setup Panel - Hidden during streaming */
+            .setup-panel {
+                width: 100%;
+                max-width: 500px;
+                margin: 20px auto;
+                padding: 20px;
                 background: #1a1a1a;
                 border: 2px solid #0f0;
-                border-radius: 8px;
-                padding: 15px;
-                margin: 15px 0;
+                border-radius: 12px;
+                pointer-events: auto;
             }
+            
+            .setup-panel h2 {
+                color: #0f0;
+                margin-bottom: 20px;
+                text-align: center;
+                font-size: 22px;
+            }
+            
             .settings-row {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                margin: 10px 0;
-                padding: 10px;
+                margin: 15px 0;
+                padding: 12px;
                 background: #2a2a2a;
-                border-radius: 5px;
+                border-radius: 8px;
             }
+            
             .settings-label {
-                font-weight: bold;
+                font-weight: 600;
                 color: #0ff;
-                font-size: 16px;
+                font-size: 14px;
             }
+            
             .toggle-switch {
                 position: relative;
                 display: inline-block;
                 width: 60px;
                 height: 34px;
             }
+            
             .toggle-switch input {
                 opacity: 0;
                 width: 0;
                 height: 0;
             }
+            
             .slider {
                 position: absolute;
                 cursor: pointer;
@@ -1035,6 +1299,7 @@ def index():
                 transition: .4s;
                 border-radius: 34px;
             }
+            
             .slider:before {
                 position: absolute;
                 content: "";
@@ -1046,105 +1311,176 @@ def index():
                 transition: .4s;
                 border-radius: 50%;
             }
+            
             input:checked + .slider {
                 background-color: #0f0;
             }
+            
             input:checked + .slider:before {
                 transform: translateX(26px);
             }
-            .speed-input {
-                width: 100px;
-                padding: 8px;
-                font-size: 18px;
-                border: 2px solid #0f0;
-                border-radius: 5px;
-                background: #000;
-                color: #0f0;
-                text-align: center;
+            
+            .info-text {
+                font-size: 11px;
+                color: #888;
+                margin-top: 10px;
+                line-height: 1.5;
             }
-            .speed-container {
-                display: flex;
-                align-items: center;
-                gap: 10px;
+            
+            /* Hide setup panel when streaming */
+            .streaming .setup-panel {
+                display: none;
             }
-            .speed-unit {
-                color: #0f0;
-                font-size: 16px;
-                font-weight: bold;
+            
+            .streaming .video-container {
+                height: 100vh;
+            }
+            
+            /* Responsive Design */
+            @media (max-width: 768px) {
+                .top-bar {
+                    padding: 8px 12px;
+                }
+                
+                .speed-panel {
+                    top: 65px;
+                    gap: 12px;
+                    padding: 12px 20px;
+                }
+                
+                .speed-value {
+                    font-size: 24px;
+                }
+                
+                .datetime-display {
+                    font-size: 12px;
+                }
+                
+                .alert-banner {
+                    font-size: 15px;
+                    padding: 16px 20px;
+                    bottom: 100px;
+                }
+                
+                .control-btn {
+                    padding: 10px 16px;
+                    font-size: 12px;
+                }
+            }
+            
+            @media (max-width: 480px) {
+                .speed-panel {
+                    flex-direction: column;
+                    gap: 8px;
+                    padding: 10px 16px;
+                }
+                
+                .speed-divider {
+                    width: 50px;
+                    height: 2px;
+                }
+                
+                .metrics-display {
+                    top: auto;
+                    bottom: 90px;
+                    right: 8px;
+                    font-size: 8px;
+                    padding: 6px 8px;
+                }
             }
         </style>
     </head>
     <body>
-        <div class="container">
-            <h1>🚗 Multi-Device Detection System</h1>
+        <!-- Setup Panel (shown before streaming starts) -->
+        <div class="setup-panel" id="setupPanel">
+            <h2>🚗 Multi-Device Detection System</h2>
             
-            <div class="mode-indicator">
-                """ + ("🚗 ROAD MODE: Optimized for driving (higher thresholds, road objects)" if ROAD_MODE else "🏠 INDOOR MODE: Optimized for testing (lower thresholds, all objects)") + """
+            <div class="settings-row">
+                <span class="settings-label">🚗 Road Mode:</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="roadModeToggle" onchange="toggleRoadMode()">
+                    <span class="slider"></span>
+                </label>
             </div>
             
-            <div class="status">
-                <div id="deviceInfo">Device ID: ⚠️ JavaScript not loaded (clear cache!)</div>
-                <div id="connectionStatus">Status: ⚠️ JavaScript not running (clear cache!)</div>
+            <div class="info-text">
+                <strong>Indoor Mode:</strong> Shorter distances, all objects<br>
+                <strong>Road Mode:</strong> Longer distances, road objects only<br>
+                <strong>Speed:</strong> Auto-calculated from GPS 📡<br>
+                <strong>Speed Limit:</strong> Auto-detected from signs 🚦
             </div>
             
-            <div class="settings-panel">
-                <h3 style="color: #0f0; margin-top: 0;">⚙️ Detection Settings</h3>
-                
-                <div class="settings-row">
-                    <span class="settings-label">🚗 Road Mode:</span>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="roadModeToggle" onchange="toggleRoadMode()">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-                
-                <div class="settings-row">
-                    <span class="settings-label">⚡ Current Speed:</span>
-                    <div class="speed-container">
-                        <input type="number" id="speedInput" class="speed-input" 
-                               min="0" max="200" value="0" step="1" 
-                               readonly style="background: #222; border: 2px solid #0a0;" 
-                               placeholder="GPS">
-                        <span class="speed-unit">km/h <span style="font-size:10px; color:#0a0;">●GPS</span></span>
-                    </div>
-                </div>
-                
-                <div class="settings-row">
-                    <span class="settings-label">🚦 Speed Limit:</span>
-                    <div class="speed-container">
-                        <input type="number" id="speedLimitInput" class="speed-input" 
-                               min="10" max="200" value="50" step="10" 
-                               readonly style="background: #222; border: 2px solid #0a0;" 
-                               placeholder="Auto">
-                        <span class="speed-unit">km/h <span style="font-size:10px; color:#0a0;">●AUTO</span></span>
-                    </div>
-                </div>
-                
-                <div style="font-size: 12px; color: #888; margin-top: 10px;">
-                    <strong>Indoor Mode:</strong> Shorter distances, all objects<br>
-                    <strong>Road Mode:</strong> Longer distances, road objects only<br>
-                    <strong>Current Speed:</strong> Auto-calculated from GPS 📡<br>
-                    <strong>Speed Limit:</strong> Auto-detected from road signs 🚦
-                </div>
+            <div id="setupStatus" style="margin: 20px 0; padding: 12px; background: #222; border-radius: 8px; font-size: 13px;">
+                <div id="deviceInfo" style="color: #0ff; margin: 5px 0;">Device ID: Loading...</div>
+                <div id="connectionStatus" style="color: #ff0; margin: 5px 0;">Status: Initializing...</div>
             </div>
             
-            <div class="controls">
-                <button id="startBtn" onclick="startCamera()">📷 Start Camera & Detection</button>
-                <button id="stopBtn" onclick="stopCamera()" style="display:none;">⏹️ Stop</button>
-                <button id="voiceBtn" onclick="toggleVoice()">🔊 Voice: OFF</button>
-            </div>
-
-            <div id="metrics" style="font-family: monospace; font-size: 12px; color: #0ff; margin: 6px 0;">
-                uploads: 0 | processed: 0 | alerts: 0
-            </div>
-            
+            <button class="control-btn btn-start" id="startBtn" onclick="startCamera()" style="width: 100%;">
+                📷 Start Camera & Detection
+            </button>
+        </div>
+        
+        <!-- Video Container with HUD Overlay -->
+        <div class="video-container setup-mode" id="videoContainer">
+            <!-- Hidden camera feed for capture -->
             <video id="localVideo" autoplay playsinline muted></video>
             
-            <div id="alertBox" class="alert-box alert-SAFE">
-                ✓ Waiting to start...
-            </div>
+            <!-- Processed video stream -->
+            <img id="resultVideo" alt="Video will appear here" style="display:none;">
             
-            <img id="resultVideo" alt="Processed video will appear here" style="display:none;">
+            <!-- HUD Overlay -->
+            <div class="hud-overlay" id="hudOverlay" style="display:none;">
+                <!-- Top Status Bar -->
+                <div class="top-bar">
+                    <div class="status-left">
+                        <div class="device-id" id="hudDeviceId">Device: Loading...</div>
+                        <div class="connection-status" id="hudConnection">Status: Initializing...</div>
+                    </div>
+                    <div class="status-right">
+                        <div class="datetime-display" id="dateTimeDisplay">-- --- ----, --:--:-- --</div>
+                        <div>
+                            <span class="mode-badge mode-indoor" id="modeBadge">🏠 INDOOR</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Speed Panel -->
+                <div class="speed-panel">
+                    <div class="speed-item">
+                        <div class="speed-label">Current Speed</div>
+                        <div class="speed-value speed-current" id="hudSpeed">0</div>
+                        <div class="speed-unit">km/h</div>
+                    </div>
+                    <div class="speed-divider"></div>
+                    <div class="speed-item">
+                        <div class="speed-label">Speed Limit</div>
+                        <div class="speed-value speed-limit" id="hudSpeedLimit">50</div>
+                        <div class="speed-unit">km/h</div>
+                    </div>
+                </div>
+                
+                <!-- Alert Banner -->
+                <div class="alert-banner alert-SAFE" id="hudAlert">
+                    ✓ All clear - System ready
+                </div>
+                
+                <!-- Metrics Display -->
+                <div class="metrics-display" id="hudMetrics">
+                    Uploads: 0<br>
+                    Processed: 0<br>
+                    Alerts: 0
+                </div>
+                
+                <!-- Bottom Control Bar -->
+                <div class="bottom-bar">
+                    <div class="control-buttons">
+                        <button class="control-btn btn-stop" id="stopBtn" onclick="stopCamera()">⏹️ Stop</button>
+                        <button class="control-btn btn-voice" id="voiceBtn" onclick="toggleVoice()">� Voice OFF</button>
+                        <button class="control-btn btn-fullscreen" id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+                        <button class="control-btn btn-settings" id="settingsBtn" onclick="toggleSettings()">⚙️ Settings</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <script>
@@ -1178,6 +1514,7 @@ def index():
             let localStream = null;
             let uploadRunning = false; // async loop flag (replaces setInterval)
             let alertCheckInterval = null;
+            let dateTimeInterval = null;
             let voiceEnabled = false;
             let lastAlertTime = 0;
             let synth = window.speechSynthesis;
@@ -1189,14 +1526,100 @@ def index():
             let videoReady = false;
             let roadMode = false;
             let currentSpeed = 0;
+            let speedLimit = 50;
             let gpsWatchId = null;
             let lastGpsPosition = null;
             let lastGpsTime = null;
+            let isStreaming = false;
+            
+            // Update date/time in IST format
+            function updateDateTime() {
+                const now = new Date();
+                // Convert to IST (UTC+5:30)
+                const istOffset = 5.5 * 60 * 60 * 1000; // 5.5 hours in milliseconds
+                const istTime = new Date(now.getTime() + istOffset);
+                
+                // Format: DD MMM YYYY, HH:MM:SS IST
+                const options = {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false,
+                    timeZone: 'Asia/Kolkata'
+                };
+                
+                const formatted = istTime.toLocaleString('en-IN', options) + ' IST';
+                const displayEl = document.getElementById('dateTimeDisplay');
+                if (displayEl) {
+                    displayEl.textContent = formatted;
+                }
+            }
+            
+            // Update HUD displays
+            function updateHUD() {
+                if (!isStreaming) return;
+                
+                // Update speed
+                document.getElementById('hudSpeed').textContent = currentSpeed;
+                
+                // Update speed limit
+                document.getElementById('hudSpeedLimit').textContent = speedLimit;
+                
+                // Update mode badge
+                const modeBadge = document.getElementById('modeBadge');
+                if (roadMode) {
+                    modeBadge.className = 'mode-badge mode-road';
+                    modeBadge.textContent = '🚗 ROAD';
+                } else {
+                    modeBadge.className = 'mode-badge mode-indoor';
+                    modeBadge.textContent = '🏠 INDOOR';
+                }
+                
+                // Update device ID
+                document.getElementById('hudDeviceId').textContent = 'Device: ' + deviceId.substring(0, 20) + '...';
+            }
 
             function updateMetrics() {
+                // Update old metrics div (if exists - for compatibility)
                 const m = document.getElementById('metrics');
-                if (!m) return;
-                m.textContent = `uploads: ${uploadCount} | processed: ${processedCount} | alerts: ${alertCount}`;
+                if (m) {
+                    m.textContent = `uploads: ${uploadCount} | processed: ${processedCount} | alerts: ${alertCount}`;
+                }
+                
+                // Update HUD metrics
+                const hudMetrics = document.getElementById('hudMetrics');
+                if (hudMetrics && isStreaming) {
+                    hudMetrics.innerHTML = `Uploads: ${uploadCount}<br>Processed: ${processedCount}<br>Alerts: ${alertCount}`;
+                }
+            }
+            
+            // Fullscreen toggle
+            function toggleFullscreen() {
+                const container = document.getElementById('videoContainer');
+                
+                if (!document.fullscreenElement) {
+                    container.requestFullscreen().catch(err => {
+                        console.error('❌ [FULLSCREEN] Error:', err);
+                        alert('Fullscreen not supported or denied');
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            }
+            
+            // Settings toggle (placeholder for future expansion)
+            function toggleSettings() {
+                // Show road mode toggle in an overlay
+                const currentMode = roadMode ? 'ROAD' : 'INDOOR';
+                const newMode = confirm(`Current mode: ${currentMode}\n\nSwitch to ${roadMode ? 'INDOOR' : 'ROAD'} mode?`);
+                
+                if (newMode) {
+                    document.getElementById('roadModeToggle').checked = !roadMode;
+                    toggleRoadMode();
+                }
             }
             
             function startGpsTracking() {
@@ -1261,8 +1684,14 @@ def index():
                     currentSpeed = 0;
                 }
                 
-                // Update UI
-                document.getElementById('speedInput').value = currentSpeed;
+                // Update UI (for legacy compatibility)
+                const speedInput = document.getElementById('speedInput');
+                if (speedInput) {
+                    speedInput.value = currentSpeed;
+                }
+                
+                // Update HUD
+                updateHUD();
                 
                 // Send speed to server
                 updateSpeedOnServer(currentSpeed);
@@ -1338,6 +1767,9 @@ def index():
                 roadMode = checkbox.checked;
                 console.log('⚙️ [SETTINGS] Road mode:', roadMode ? 'ON' : 'OFF');
                 
+                // Update HUD
+                updateHUD();
+                
                 try {
                     const response = await fetch('/update_settings', {
                         method: 'POST',
@@ -1351,9 +1783,19 @@ def index():
                     if (response.ok) {
                         const data = await response.json();
                         console.log('✅ [SETTINGS] Settings updated:', data);
+                        
+                        // Update connection status
+                        const statusMsg = 'Status: Mode = ' + (roadMode ? '🚗 ROAD' : '🏠 INDOOR');
                         const statusEl = document.getElementById('connectionStatus');
-                        statusEl.textContent = 'Status: Mode = ' + (roadMode ? '🚗 ROAD' : '🏠 INDOOR');
-                        statusEl.style.color = roadMode ? '#ff8800' : '#0ff';
+                        const hudConnEl = document.getElementById('hudConnection');
+                        
+                        if (statusEl) {
+                            statusEl.textContent = statusMsg;
+                            statusEl.style.color = roadMode ? '#ff8800' : '#0ff';
+                        }
+                        if (hudConnEl) {
+                            hudConnEl.textContent = statusMsg;
+                        }
                     }
                 } catch(err) {
                     console.error('❌ [SETTINGS] Failed to update road mode:', err);
@@ -1451,11 +1893,17 @@ def index():
                     console.log('🎥 [START] Setting video source...');
                     const localVideoEl = document.getElementById('localVideo');
                     localVideoEl.srcObject = localStream;
-                    document.getElementById('startBtn').style.display = 'none';
-                    document.getElementById('stopBtn').style.display = 'block';
+                    
+                    // Hide setup panel and show HUD
+                    document.getElementById('setupPanel').style.display = 'none';
+                    document.body.classList.add('streaming');
+                    document.getElementById('videoContainer').classList.remove('setup-mode');
                     document.getElementById('resultVideo').style.display = 'block';
-                    document.getElementById('connectionStatus').textContent = 'Status: Camera active, uploading frames...';
-                    document.getElementById('connectionStatus').style.color = '#0f0';
+                    document.getElementById('hudOverlay').style.display = 'block';
+                    isStreaming = true;
+                    
+                    // Update HUD status
+                    document.getElementById('hudConnection').textContent = 'Status: Camera active, uploading frames...';
                     
                     // Register device
                     console.log('📝 [START] Registering device with server...');
@@ -1471,6 +1919,13 @@ def index():
                     }
                     
                     console.log('✅ [START] Device registered successfully');
+                    
+                    // Start date/time updates
+                    updateDateTime(); // Update immediately
+                    dateTimeInterval = setInterval(updateDateTime, 1000); // Update every second
+                    
+                    // Start HUD updates
+                    setInterval(updateHUD, 500); // Update HUD twice per second
                     
                     // Start uploading frames with an async loop (prevents overlap)
                     console.log('🚀 [START] Starting frame upload loop (~5 FPS)...');
@@ -1504,8 +1959,6 @@ def index():
                     alert(errorMsg);
                     document.getElementById('connectionStatus').textContent = 'Status: ' + err.name;
                     document.getElementById('connectionStatus').style.color = '#f00';
-                    document.getElementById('alertBox').textContent = '❌ Camera Error - See message above';
-                    document.getElementById('alertBox').className = 'alert-box alert-WARNING';
                 }
             }
 
@@ -1519,18 +1972,32 @@ def index():
                     clearInterval(alertCheckInterval);
                     alertCheckInterval = null;
                 }
+                if (dateTimeInterval) {
+                    clearInterval(dateTimeInterval);
+                    dateTimeInterval = null;
+                }
                 
                 // Stop GPS tracking
                 stopGpsTracking();
                 
+                // Reset display
                 document.getElementById('localVideo').srcObject = null;
-                document.getElementById('startBtn').style.display = 'block';
-                document.getElementById('stopBtn').style.display = 'none';
                 document.getElementById('resultVideo').style.display = 'none';
+                document.getElementById('hudOverlay').style.display = 'none';
+                document.getElementById('setupPanel').style.display = 'block';
+                document.body.classList.remove('streaming');
+                document.getElementById('videoContainer').classList.add('setup-mode');
+                isStreaming = false;
+                
+                // Update status
                 document.getElementById('connectionStatus').textContent = 'Status: Stopped';
                 document.getElementById('connectionStatus').style.color = '#ff0';
-                document.getElementById('alertBox').className = 'alert-box alert-SAFE';
-                document.getElementById('alertBox').textContent = '✓ Stopped';
+                
+                // Reset counters
+                firstProcessedShown = false;
+                uploadCount = 0;
+                processedCount = 0;
+                alertCount = 0;
             }
 
             async function uploadFrame() {
@@ -1577,19 +2044,7 @@ def index():
 
                         if (!firstProcessedShown) {
                             firstProcessedShown = true;
-                            // Keep local video capturable: make it tiny/transparent, but not hidden
-                            const lv = document.getElementById('localVideo');
-                            lv.style.opacity = '0.01';
-                            lv.style.width = '120px';
-                            lv.style.height = '90px';
-                            lv.style.border = '1px dashed #333';
-                            lv.style.margin = '4px auto';
-                            // Ensure processed image is visible and scrolled into view
-                            resultEl.style.display = 'block';
-                            try { window.scrollTo({ top: resultEl.offsetTop - 10, behavior: 'smooth' }); } catch(e) {}
-                            const ab = document.getElementById('alertBox');
-                            ab.className = 'alert-box alert-CAUTION';
-                            ab.textContent = '✓ Showing processed view with detection boxes';
+                            console.log('✅ [UPLOAD] First processed frame displayed');
                         }
                         if (Math.random() < 0.05) {
                             console.log('📸 [UPLOAD] Frame uploaded and processed');
@@ -1618,19 +2073,40 @@ def index():
                     const response = await fetch('/get_alert/' + deviceId);
                     const alert = await response.json();
                     
+                    // Update HUD alert banner
+                    const hudAlert = document.getElementById('hudAlert');
+                    if (hudAlert) {
+                        hudAlert.className = 'alert-banner alert-' + alert.level;
+                        hudAlert.textContent = alert.message;
+                    }
+                    
+                    // Update legacy alert box if it exists
                     const alertBox = document.getElementById('alertBox');
-                    alertBox.className = 'alert-box alert-' + alert.level;
-                    alertBox.textContent = alert.message;
-                    if (alert.has_alert) { alertCount++; if ((alertCount % 3) === 0) updateMetrics(); }
+                    if (alertBox) {
+                        alertBox.className = 'alert-box alert-' + alert.level;
+                        alertBox.textContent = alert.message;
+                    }
+                    
+                    if (alert.has_alert) { 
+                        alertCount++; 
+                        if ((alertCount % 3) === 0) updateMetrics(); 
+                    }
                     
                     // Update speed limit display if available
                     if (alert.speed_limit !== undefined) {
+                        speedLimit = alert.speed_limit;
+                        
                         const speedLimitInput = document.getElementById('speedLimitInput');
-                        const currentLimit = parseInt(speedLimitInput.value) || 50;
-                        if (alert.speed_limit !== currentLimit) {
-                            speedLimitInput.value = alert.speed_limit;
-                            console.log('🚦 [AUTO] Speed limit updated to:', alert.speed_limit, 'km/h');
+                        if (speedLimitInput) {
+                            const currentLimit = parseInt(speedLimitInput.value) || 50;
+                            if (alert.speed_limit !== currentLimit) {
+                                speedLimitInput.value = alert.speed_limit;
+                                console.log('🚦 [AUTO] Speed limit updated to:', alert.speed_limit, 'km/h');
+                            }
                         }
+                        
+                        // Update HUD
+                        updateHUD();
                     }
                     
                     // Log only when alert changes or is CRITICAL
@@ -1642,10 +2118,21 @@ def index():
                         }
                     }
                     
-                    // Voice alert
+                    // Voice alert - continuous alerts for WARNING and CRITICAL
                     if (voiceEnabled && alert.has_alert && alert.voice_message) {
                         const now = Date.now();
-                        if (alert.level === 'CRITICAL' || now - lastAlertTime > 1000) {
+                        // CRITICAL: Always speak immediately (every alert check)
+                        // WARNING: Speak every 2 seconds
+                        // CAUTION: Speak every 3 seconds
+                        let speakInterval = 3000; // Default for CAUTION
+                        
+                        if (alert.level === 'CRITICAL') {
+                            speakInterval = 0; // Speak immediately, every time
+                        } else if (alert.level === 'WARNING') {
+                            speakInterval = 2000; // Every 2 seconds
+                        }
+                        
+                        if (now - lastAlertTime >= speakInterval) {
                             console.log('🔊 [VOICE] Speaking:', alert.voice_message);
                             speak(alert.voice_message);
                             lastAlertTime = now;
@@ -1659,9 +2146,12 @@ def index():
             function toggleVoice() {
                 voiceEnabled = !voiceEnabled;
                 const btn = document.getElementById('voiceBtn');
-                btn.textContent = voiceEnabled ? '🔊 Voice: ON' : '🔇 Voice: OFF';
-                btn.style.background = voiceEnabled ? '#0f0' : '#00f';
-                btn.style.color = voiceEnabled ? '#000' : '#fff';
+                btn.textContent = voiceEnabled ? '🔊 Voice ON' : '🔇 Voice OFF';
+                if (voiceEnabled) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
             }
 
             function speak(text) {
