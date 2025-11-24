@@ -155,6 +155,42 @@ class DeviceSession:
         # Road hazard tracking
         self.recent_hazards = {}  # Track recently seen hazards to avoid spam
         self.hazard_lock = threading.Lock()
+
+        # Lead vehicle tracking for traffic suppression / safe-distance logic
+        self.last_lead_size = None            # previous frame size percent of lead object
+        self.last_lead_distance = None        # previous frame estimated distance (m)
+        self.lead_stability_frames = 0        # consecutive frames stable
+        self.last_lead_update_ts = 0.0
+
+    def update_lead_observation(self, size_percent, distance_m):
+        """Track stability of lead object to detect stop-and-go traffic conditions.
+        A lead is considered 'stable' if size percent and distance change minimally across frames.
+        """
+        STABILITY_SIZE_DELTA = 2.0   # percent points
+        STABILITY_DIST_DELTA = 0.7   # meters
+        now = time.time()
+
+        if self.last_lead_size is None:
+            self.last_lead_size = size_percent
+            self.last_lead_distance = distance_m
+            self.lead_stability_frames = 1
+            self.last_lead_update_ts = now
+            return
+
+        size_diff = abs(size_percent - self.last_lead_size)
+        dist_diff = abs(distance_m - self.last_lead_distance)
+        if size_diff <= STABILITY_SIZE_DELTA and dist_diff <= STABILITY_DIST_DELTA:
+            self.lead_stability_frames += 1
+        else:
+            self.lead_stability_frames = 1
+        self.last_lead_size = size_percent
+        self.last_lead_distance = distance_m
+        self.last_lead_update_ts = now
+
+    def is_lead_stable(self):
+        """Return True if lead has been stable for enough frames."""
+        REQUIRED = 3
+        return self.lead_stability_frames >= REQUIRED
         
     def update_frame(self, frame):
         """Update the latest frame for this device"""
@@ -421,7 +457,8 @@ class YOLOObjectDetector:
             'warning': base_warning * speed_factor,
             'caution': base_caution * speed_factor,
             'conf': 0.35 if road_mode else 0.25,
-            'path_ratio': 0.45 if road_mode else 0.40
+            # Road mode widens lateral coverage for earlier awareness (previously 0.45)
+            'path_ratio': 0.60 if road_mode else 0.40
         }
 
     def detect_objects(self, frame):
@@ -445,6 +482,12 @@ class YOLOObjectDetector:
                     center_x = x + w // 2
                     center_y = y + h // 2
 
+                    # Suppress own vehicle bonnet/hood detections to avoid self-alerting.
+                    # Heuristic: object is classified as a vehicle, sits very low in frame,
+                    # touches or nearly touches bottom edge, and has relatively shallow height.
+                    if self.is_self_vehicle(class_name, y, y + h, h, height):
+                        continue
+
                     detections.append({
                         'class': class_name,
                         'confidence': conf,
@@ -455,6 +498,25 @@ class YOLOObjectDetector:
                     })
 
         return detections
+
+    def is_self_vehicle(self, class_name, top_y, bottom_y, box_h, frame_h):
+        """Determine if a detected 'car'/'truck'/'bus' box is likely the host vehicle bonnet.
+
+        Conditions chosen to minimize false suppression:
+        - Class is a common vehicle type.
+        - Top of box is in lower 60% of frame (bonnet appears low).
+        - Bottom of box is within lower 5% band (touching bottom edge).
+        - Box height is relatively small (<30% of frame height) to distinguish nearby external vehicles.
+        """
+        if class_name not in {'car', 'truck', 'bus'}:
+            return False
+        if top_y < frame_h * 0.60:
+            return False
+        if bottom_y < frame_h * 0.95:
+            return False
+        if box_h > frame_h * 0.30:
+            return False
+        return True
 
     def calculate_distance(self, size_percent, thresholds):
         """Estimate distance based on object size using dynamic thresholds"""
@@ -858,6 +920,38 @@ def process_device_frame(device_id):
     alert_msg, alert_level, color, priority_objs, thresholds, extra_data = detector.generate_alert(
         detections, frame.shape, speed_kmh, road_mode, frame
     )
+
+    # Traffic suppression & safe-distance adjustments
+    TRAFFIC_SPEED_THRESHOLD = 15.0   # km/h; below this treat close stable following as traffic
+    HIGH_SPEED_THRESHOLD = 50.0      # km/h; above this enforce safe distance alerts
+    REACTION_TIME_SEC = 2.0          # simple 2-second rule
+
+    if priority_objs:
+        top_obj = priority_objs[0]
+        lead_distance = top_obj['distance']  # coarse discrete distance (m)
+        # Map object size percent for stability tracking (retrieve original from detections)
+        lead_class = top_obj['class']
+        # Find matching detection to get size percent
+        lead_det = next((d for d in detections if d['class'] == lead_class and detector.is_in_driving_path(d['center_x'], frame.shape[1], thresholds['path_ratio'])), None)
+        if lead_det:
+            session.update_lead_observation(lead_det['size'], lead_distance)
+
+        # Suppress non-critical alerts in slow, stable traffic
+        if speed_kmh <= TRAFFIC_SPEED_THRESHOLD and alert_level in ("WARNING", "CAUTION") and session.is_lead_stable():
+            alert_msg = f"Traffic flow stable | {alert_msg}" if alert_msg else "Traffic flow stable"
+            # downgrade voice / mark suppression reason
+            alert_level = "MONITOR"
+            color = COLOR_SAFE
+
+        # High speed safe distance logic: if speed high, ensure alerts not suppressed
+        if speed_kmh >= HIGH_SPEED_THRESHOLD and alert_level == "MONITOR":
+            # Calculate recommended safe distance (2-second rule)
+            speed_m_s = speed_kmh / 3.6
+            recommended = speed_m_s * REACTION_TIME_SEC  # meters
+            if lead_distance < recommended:
+                alert_level = "CAUTION" if recommended - lead_distance < 5 else "WARNING"
+                alert_msg = f"Maintain distance ({lead_distance:.1f}m < {recommended:.0f}m) | {alert_msg}" if alert_msg else f"Maintain distance {lead_distance:.1f}m"
+                color = COLOR_WARNING if alert_level == "WARNING" else COLOR_CAUTION
     
     # Update speed limit if detected from road sign
     if 'detected_speed_limit' in extra_data and extra_data['detected_speed_limit']:

@@ -54,6 +54,10 @@ docker-compose up --build -d
 
 These road-focused scenarios are implemented and verified in code when Road Mode is enabled:
 
+- Host vehicle bonnet suppression prevents false self-collision alerts (bottom-frame vehicle detections filtered)
+- Traffic flow suppression: At low speeds (<15 km/h) with a stable lead vehicle, non-critical collision alerts are downgraded to monitoring (voice muted) to reduce stop-and-go spam.
+- High-speed following distance: Above 50 km/h a simple 2‑second rule checks lead distance; if too close, alert escalates (CAUTION/WARNING) regardless of stability.
+
 - Collision warnings in driving path (lane-centric)
   - Pedestrians (person/child)
   - Two-wheelers (bicycle, motorcycle)
@@ -63,7 +67,7 @@ These road-focused scenarios are implemented and verified in code when Road Mode
 
 - Speed-adaptive alert distances (dynamic thresholds)
   - Alert thresholds scale with speed: earlier warnings at higher speeds, tighter at low speeds
-  - Center-path width tuned for road use (narrower than indoor)
+  - Driving path lateral coverage widened for Road Mode (path_ratio ≈ 0.60 vs 0.40 normal) to catch adjacent lane intrusions early
 
 - Traffic sign and control awareness
   - Stop sign proximity alerts (closer than ~15m)
@@ -138,6 +142,25 @@ Use a mobile device in Road Mode and follow these steps to validate each use cas
   - Step 2: While the alert is active, bring the vehicle to a complete stop (<= ~0.5–1 km/h sustained).
   - Step 3: Confirm voice stops automatically while visuals (red box/banner) remain.
   - Step 4: Start moving again; confirm voice resumes with the same priority intervals.
+
+  7) Host vehicle bonnet suppression
+    - Step 1: Start Road Mode with camera showing part of your own bonnet/hood.
+    - Step 2: Confirm no "CAR" collision alert is raised solely for the bonnet region.
+    - Step 3: Introduce an external vehicle or object entering the widened path zone; alert should trigger normally.
+    - Step 4: Tilt camera so bonnet no longer visible; behavior should remain unchanged (no false alerts appear/disappear).
+    - Acceptance: System suppresses self-bonnet while still detecting external vehicles in path.
+
+  8) Traffic flow suppression (low speed)
+    - Step 1: Enable Road Mode; follow a vehicle in slow traffic (<15 km/h).
+    - Step 2: Maintain steady gap; after several frames alert banner should downgrade to "Traffic flow stable" (monitor) with no voice.
+    - Step 3: Briefly vary distance; alert should resume normal WARNING/CAUTION classification if gap changes.
+    - Acceptance: Stable, slow following yields suppressed voice alerts.
+
+  9) High-speed safe following distance
+    - Step 1: At >50 km/h approach a lead vehicle until system estimates a short distance (CRITICAL/WARNING/CAUTION logic engages).
+    - Step 2: If alert downgrades to MONITOR incorrectly, ensure distance is below recommended (approx 2s rule); system should escalate with "Maintain distance" message.
+    - Step 3: Increase gap; escalation message should disappear once distance heuristic above recommended threshold.
+    - Acceptance: Unsafe close following at high speed triggers distance maintenance warning.
 
 7) Alert behavior cadence & toggles
   - Step 1: With an active WARNING alert, time the spoken messages (≈2s apart).
@@ -218,6 +241,13 @@ openpilot/
 ├── docker-compose.override.yml     # Local dev override (builds from source)
 ├── docker-compose.prod.yml         # Production-specific settings
 ├── requirements.txt                 # Python dependencies
+
+### Option 3: EC2 Source-Based Build (Alternate)
+
+Build the image directly on the EC2 instance (useful if Docker Hub is private or for rapid iteration without pushing every change).
+
+```bash
+# Install Docker if missing (Ubuntu/Debian)
 ├── deploy-ec2.sh                   # Automated EC2 deployment script
 │
 ├── SYSTEM_DOCUMENTATION.md         # Complete system documentation
@@ -236,6 +266,17 @@ openpilot/
 | **[DOCKERHUB_ACCESS_FIX.md](DOCKERHUB_ACCESS_FIX.md)** | 🔒 Fix Docker Hub pull access denied error |
 | **[QUICK_DEPLOY.md](QUICK_DEPLOY.md)** | 🚀 Deploy to EC2 in 5 minutes (Ubuntu/Amazon Linux) |
 | **[UBUNTU_VS_AMAZON_LINUX.md](UBUNTU_VS_AMAZON_LINUX.md)** | 📋 OS-specific command reference |
+
+What this script does:
+- Installs Docker if missing (Ubuntu, Debian, Amazon Linux supported)
+- Stops & removes existing `openpilot-detection` containers
+- Removes old `kainosit/openpilot:*` images and local builds
+- Optionally prunes dangling containers/images (omit with `--no-prune`)
+- Builds via compose (`docker compose build --pull`) or pulls if `--no-build`
+- Starts stack with production compose settings
+
+If using Amazon Linux:
+```bash
 | **[SYSTEM_DOCUMENTATION.md](SYSTEM_DOCUMENTATION.md)** | 📖 Complete system reference (50+ pages) |
 | **[DOCKER_COMPOSE_GUIDE.md](DOCKER_COMPOSE_GUIDE.md)** | 🐳 Docker Compose usage for dev/prod |
 | **[LOCAL_DOCKER_TESTING.md](LOCAL_DOCKER_TESTING.md)** | 💻 Local Docker Desktop testing |
@@ -243,7 +284,13 @@ openpilot/
 
 ## 🎮 Usage
 
+Access the app:
+```bash
+
 ### 1. Start the Server
+
+To fully reset before a fresh build:
+```bash
 ```bash
 docker-compose up -d
 ```
