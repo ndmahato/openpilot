@@ -1516,7 +1516,7 @@ def index():
     <body>
         <!-- Setup Panel (shown before streaming starts) -->
         <div class="setup-panel" id="setupPanel">
-            <h2>🚗 Multi-Device Detection System</h2>
+            <h2>🚗 Multi-Device Detection System - Beta</h2>
             
             <div class="settings-row">
                 <span class="settings-label">🚗 Road Mode:</span>
