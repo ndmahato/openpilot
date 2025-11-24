@@ -42,9 +42,11 @@ except ImportError:
     print("   Install with: pip install pytesseract")
     print("   Also install Tesseract: https://github.com/UB-Mannheim/tesseract/wiki")
 
-# Configuration
+# Configuration & Versioning
 WINDOW_NAME = "YOLO Multi-Device Server"
 MOBILE_STREAM_PORT = 5000  # Port for mobile streaming
+APP_VERSION = os.environ.get("OPENPILOT_APP_VERSION", "dev-beta")  # Set via env for container builds
+
 
 # ============================================================================
 # DETECTION MODE: Choose based on your environment
@@ -1023,7 +1025,9 @@ def index():
     cache_buster = int(time.time())
     print(f"📱 [INDEX] Cache buster: {cache_buster}")
     
-    html = """
+    # Inject dynamic version
+    version = APP_VERSION
+    html = f"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -1139,6 +1143,18 @@ def index():
                 font-weight: 700;
                 font-family: 'Courier New', monospace;
                 text-shadow: 0 0 10px rgba(0, 255, 0, 0.6);
+            }
+            .version-badge {
+                display:inline-block;
+                margin-left:8px;
+                padding:4px 10px;
+                font-size:12px;
+                font-weight:600;
+                background:rgba(0,255,0,0.15);
+                color:#0f0;
+                border:1px solid rgba(0,255,0,0.4);
+                border-radius:14px;
+                letter-spacing:0.5px;
             }
             
             .mode-badge {
@@ -1516,7 +1532,7 @@ def index():
     <body>
         <!-- Setup Panel (shown before streaming starts) -->
         <div class="setup-panel" id="setupPanel">
-            <h2>🚗 Multi-Device Detection System - Beta</h2>
+            <h2>🚗 Multi-Device Detection System <span class="version-badge">v{version}</span></h2>
             
             <div class="settings-row">
                 <span class="settings-label">🚗 Road Mode:</span>
@@ -2297,6 +2313,11 @@ def index():
     response.headers['Expires'] = '0'
     print(f"✅ [INDEX] Serving page with no-cache headers to {client_ip}")
     return response
+
+@app.route('/version')
+def version_endpoint():
+    """Return current application version for remote verification."""
+    return jsonify({"version": APP_VERSION})
 
 
 @app.route('/register_device', methods=['POST'])
