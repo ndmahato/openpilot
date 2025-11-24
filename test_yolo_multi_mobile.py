@@ -1579,6 +1579,7 @@ def index():
                         <div class="datetime-display" id="dateTimeDisplay">-- --- ----, --:--:-- --</div>
                         <div>
                             <span class="mode-badge mode-indoor" id="modeBadge">🏠 INDOOR</span>
+                            <span class="version-badge">v{version}</span>
                         </div>
                     </div>
                 </div>
