@@ -8,26 +8,35 @@ set -euo pipefail
 # Optional env vars:
 #   OPENPILOT_REPO (default https://github.com/ndmahato/openpilot.git)
 #   OPENPILOT_DIR  (default ~/openpilot)
-#   COMPOSE_FILES  (default "docker-compose.yml docker-compose.prod.yml")
+#   COMPOSE_FILES  (default "docker-compose.yml docker-compose.override.yml")
 #   SERVICE_NAME   (default multi-device-detection)
 #   CONTAINER_NAME (default openpilot-detection)
 
 BRANCH="master"
 NO_BUILD="false"
 NO_PRUNE="false"
+USE_PROD="false"
+FULL_CLEAN="false"
 for arg in "$@"; do
   case "$arg" in
     --branch) shift; BRANCH="$1" ;;
     --branch=*) BRANCH="${arg#*=}" ;;
     --no-build) NO_BUILD="true" ;;
     --no-prune) NO_PRUNE="true" ;;
+    --prod) USE_PROD="true" ;;
+    --full-clean) FULL_CLEAN="true" ;;
   esac
   shift || true
 done
 
 OPENPILOT_REPO="${OPENPILOT_REPO:-https://github.com/ndmahato/openpilot.git}"
 OPENPILOT_DIR="${OPENPILOT_DIR:-$HOME/openpilot}"
-COMPOSE_FILES=(docker-compose.yml docker-compose.prod.yml)
+# Default to source build (override). Switch to prod with --prod.
+if [ "$USE_PROD" = "true" ]; then
+  COMPOSE_FILES=(docker-compose.yml docker-compose.prod.yml)
+else
+  COMPOSE_FILES=(docker-compose.yml docker-compose.override.yml)
+fi
 SERVICE_NAME="${SERVICE_NAME:-multi-device-detection}"
 CONTAINER_NAME="${CONTAINER_NAME:-openpilot-detection}"
 IMAGE_REF="kainosit/openpilot:latest"
@@ -97,14 +106,16 @@ for cid in $(docker ps -q --filter "ancestor=$IMAGE_REF"); do
   docker rm "$cid" || true
 done
 
-log "Removing old project images (kainosit/openpilot and local builds)..."
-for img in $(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E '^kainosit/openpilot'); do
-  docker rmi "$img" || true
-done
-# Remove unnamed local images based on Dockerfile label
-for img in $(docker images --filter "reference=openpilot*" --format '{{.Repository}}:{{.Tag}}'); do
-  docker rmi "$img" || true
-done
+if [ "$FULL_CLEAN" = "true" ]; then
+  log "Full clean enabled: removing project images (kainosit/openpilot and local builds)..."
+  for img in $(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E '^kainosit/openpilot'); do
+    docker rmi "$img" || true
+  done
+  # Remove unnamed/local images that may match openpilot
+  for img in $(docker images --filter "reference=openpilot*" --format '{{.Repository}}:{{.Tag}}'); do
+    docker rmi "$img" || true
+  done
+fi
 
 # Clone or update repository
 if [ -d "$OPENPILOT_DIR/.git" ]; then
@@ -119,6 +130,12 @@ fi
 
 cd "$OPENPILOT_DIR"
 
+# Derive and export a human-readable version for the app inside the container
+SHORT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_DATE=$(date +%Y.%m.%d 2>/dev/null || echo "unknown")
+export OPENPILOT_APP_VERSION="${OPENPILOT_APP_VERSION:-${BRANCH}-${SHORT_SHA}-${BUILD_DATE}}"
+log "Using OPENPILOT_APP_VERSION=$OPENPILOT_APP_VERSION"
+
 # Decide compose invocation
 COMPOSE_ARGS=(compose)
 for f in "${COMPOSE_FILES[@]}"; do
@@ -130,12 +147,16 @@ if [ "$NO_BUILD" = "true" ]; then
   log "Skipping build (--no-build specified), attempting pull (will build if no image)."
   if ! docker ${COMPOSE_ARGS[@]} pull "$SERVICE_NAME"; then
     warn "Pull failed; performing build as fallback.";
-    docker ${COMPOSE_ARGS[@]} build --pull "$SERVICE_NAME"
+    docker ${COMPOSE_ARGS[@]} build "$SERVICE_NAME"
   fi
 else
-  log "Building image from source via docker compose build..."
-  if ! docker ${COMPOSE_ARGS[@]} build --pull "$SERVICE_NAME"; then
-    warn "--pull failed; retrying without --pull"; docker ${COMPOSE_ARGS[@]} build "$SERVICE_NAME"
+  if [ "$USE_PROD" = "true" ]; then
+    warn "--prod selected: build is a no-op (service uses prebuilt image)."
+  else
+    log "Building image from source via docker compose build (override)..."
+    if ! docker ${COMPOSE_ARGS[@]} build "$SERVICE_NAME"; then
+      err "Compose build failed."; exit 3
+    fi
   fi
 fi
 
