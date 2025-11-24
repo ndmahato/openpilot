@@ -1027,7 +1027,8 @@ def index():
     
     # Inject dynamic version
     version = APP_VERSION
-    html = f"""
+    # Use a plain triple-quoted template to avoid f-string brace conflicts with CSS keyframes
+    html_template = """
     <!DOCTYPE html>
     <html>
     <head>
@@ -2307,6 +2308,8 @@ def index():
     </body>
     </html>
     """
+    # Replace version placeholders (avoid formatting conflicts with CSS braces)
+    html = html_template.replace("{version}", version)
     response = make_response(html)
     response.headers['Content-Type'] = 'text/html; charset=utf-8'
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
